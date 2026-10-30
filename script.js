@@ -1,291 +1,172 @@
-"use strict";
+// ============================================================================
+// 1. CẤU HÌNH API KEY & CORS PROXY (ĐÃ TÍCH HỢP TÀI KHOẢN CỦA BẠN)
+// ============================================================================
 
-/* ================= CẤU HÌNH ================= */
-// Key của dịch vụ Chung Sức. Để trống thì trang sẽ hiện ô nhập key (lưu localStorage).
+// Điền API Key của dịch vụ Chung Sức vào đây (Upstream API token)
 const DVC_API_KEY = "dvc_1ff8c725bca9ab562ebd6311cfeefb4a18b9ba3945d04ecfdad5f3941ed81556";
 
-// Key CorsProxy (lấy ở dashboard corsproxy.io). Để trống = dùng proxy không key.
-const CORSPROXY_KEY = "e25a3964";
+// Mã Key CorsProxy lấy từ tài khoản của bạn
+const CORS_PROXY_KEY = "e25a3964";
 
-const API_URL = "https://api.dichvuchungsuc.com/v1/orders";
-const PROXY_BASE = "https://corsproxy.io/?";
-const SERVICE_CODE = "LIENQUAN_CHUNG_SUC";
+// URL gốc của hệ thống tạo đơn
+const TARGET_API_URL = "https://api.dichvuchungsuc.com/v1/orders";
 
-const MAX_QTY = 100;      // giới hạn an toàn cho 1 lượt bấm
-const DELAY_MS = 800;     // nghỉ giữa các đơn ở chế độ tách đơn
-const MAX_RETRY = 3;      // số lần thử lại khi gặp 429 / 503
-/* ============================================ */
+// Khởi tạo URL theo chuẩn URLSearchParams của CorsProxy
+const proxyParams = new URLSearchParams({
+  key: CORS_PROXY_KEY,
+  url: TARGET_API_URL
+});
+const FINAL_API_URL = "https://corsproxy.io/?" + proxyParams.toString();
 
-const $ = (id) => document.getElementById(id);
-const el = {
-  text: $("shareText"),
-  qty: $("quantity"),
-  mode: $("mode"),
-  keyField: $("keyField"),
-  keyInput: $("apiKeyInput"),
-  submit: $("submitBtn"),
-  cancel: $("cancelBtn"),
-  panel: $("progressPanel"),
-  percent: $("percent"),
-  counter: $("counter"),
-  track: document.querySelector(".track"),
-  fill: $("fill"),
-  status: $("status"),
-  log: $("log"),
-  result: $("result"),
-};
+// ============================================================================
+// 2. THAM CHIẾU DOM ELEMENTS
+// ============================================================================
+const rawTextInput = document.getElementById("rawText");
+const quantityInput = document.getElementById("quantity");
+const submitBtn = document.getElementById("submitBtn");
+const btnText = document.getElementById("btnText");
+const resultBox = document.getElementById("resultBox");
 
-let controller = null;
+// ============================================================================
+// 3. HÀM TIỆN ÍCH (HIỂN THỊ THÔNG BÁO & LỌC MÃ REGEX)
+// ============================================================================
 
-/* ---------- Tiện ích ---------- */
-function extractCode(text) {
-  const m = text.match(/--([A-Za-z0-9_]+)--/);
-  return m ? m[1] : null;
+/**
+ * Hiển thị thông báo kết quả lên giao diện
+ */
+function showNotification(type, htmlContent) {
+  resultBox.className = type;
+  resultBox.innerHTML = htmlContent;
 }
 
-function getApiKey() {
-  if (DVC_API_KEY) return DVC_API_KEY;
-  return el.keyInput.value.trim();
+/**
+ * Dùng Regex quét chuỗi mã nằm giữa 2 cặp dấu gạch ngang (--mã--)
+ */
+function extractLienQuanCode(text) {
+  if (!text) return null;
+  const regex = /--([^\s-]+)--/;
+  const match = text.match(regex);
+  return match && match[1] ? match[1].trim() : null;
 }
 
-function buildProxyUrl() {
-  let url = PROXY_BASE + "?url=" + encodeURIComponent(API_URL);
-  if (CORSPROXY_KEY) url += "&key=" + encodeURIComponent(CORSPROXY_KEY);
-  return url;
-}
+/**
+ * Chuyển đổi mã lỗi HTTP sang thông báo tiếng Việt chi tiết
+ */
+function getVietnameseErrorMessage(status, serverMessage) {
+  const detail = serverMessage ? `<br><small>Chi tiết máy chủ: <em>${serverMessage}</em></small>` : "";
 
-function sleep(ms, signal) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    if (signal) {
-      signal.addEventListener("abort", () => {
-        clearTimeout(t);
-        reject(new DOMException("Aborted", "AbortError"));
-      }, { once: true });
-    }
-  });
-}
-
-function setProgress(done, total, state) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  el.percent.textContent = pct + "%";
-  el.counter.textContent = done + " / " + total + " đơn";
-  el.fill.style.width = pct + "%";
-  el.track.setAttribute("aria-valuenow", String(pct));
-  el.fill.classList.remove("done", "failed", "indeterminate");
-  if (state) el.fill.classList.add(state);
-}
-
-function addLog(message, type) {
-  const li = document.createElement("li");
-  li.textContent = message;
-  if (type) li.className = type;
-  el.log.appendChild(li);
-  el.log.scrollTop = el.log.scrollHeight;
-}
-
-function showResult(type, title, detail) {
-  el.result.className = "show " + type;
-  el.result.textContent = "";
-  const strong = document.createElement("strong");
-  strong.textContent = title;
-  el.result.appendChild(strong);
-  if (detail) el.result.appendChild(document.createTextNode(detail));
-}
-
-function setBusy(busy) {
-  el.submit.disabled = busy;
-  el.submit.textContent = busy ? "Đang xử lý..." : "Tạo Đơn Ngay";
-  el.cancel.hidden = !busy;
-  el.text.disabled = busy;
-  el.qty.disabled = busy;
-  el.mode.disabled = busy;
-  el.keyInput.disabled = busy;
-}
-
-function describeError(status, apiMessage) {
-  const base = {
-    400: "Dữ liệu gửi lên không hợp lệ (kiểm tra lại mã mời hoặc số lượng).",
-    401: "Sai hoặc thiếu API Key dịch vụ.",
-    402: "Tài khoản không đủ số dư, hãy nạp thêm tiền.",
-    403: "Key không có quyền sử dụng dịch vụ này (hoặc bị chặn).",
-    409: "Đơn bị trùng hoặc đang được xử lý (Idempotency-Key đã dùng).",
-    429: "Gửi quá nhanh, bị giới hạn tốc độ. Hãy chờ một lúc rồi thử lại.",
-    503: "Hệ thống dịch vụ đang bảo trì hoặc quá tải. Thử lại sau.",
-  }[status] || ("Lỗi không xác định (HTTP " + status + ").");
-  return apiMessage ? base + " [" + apiMessage + "]" : base;
-}
-
-/* ---------- Gọi API cho 1 đơn ---------- */
-async function placeOrder({ code, quantity, idemKey, signal, onRetry }) {
-  for (let attempt = 0; ; attempt++) {
-    let res;
-    try {
-      res = await fetch(buildProxyUrl(), {
-        method: "POST",
-        headers: {
-          "accept": "*/*",
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + getApiKey(),
-          // Giữ nguyên key khi thử lại để không bị tạo đơn trùng
-          "Idempotency-Key": idemKey,
-        },
-        body: JSON.stringify({
-          serviceCode: SERVICE_CODE,
-          quantity: quantity,
-          lienQuanCode: code,
-        }),
-        signal,
-      });
-    } catch (err) {
-      if (err.name === "AbortError") throw err;
-      return {
-        ok: false,
-        status: 0,
-        message: "Không kết nối được. Kiểm tra mạng, key CorsProxy và danh sách referrer được phép trong dashboard CorsProxy.",
-      };
-    }
-
-    const data = await res.json().catch(() => ({}));
-
-    if ((res.status === 429 || res.status === 503) && attempt < MAX_RETRY) {
-      const retryAfter = Number(res.headers.get("Retry-After"));
-      const wait = retryAfter > 0 ? retryAfter * 1000 : 1500 * Math.pow(2, attempt);
-      onRetry(attempt + 1, wait, res.status);
-      await sleep(wait, signal);
-      continue;
-    }
-
-    if (res.status === 200 || res.status === 201) {
-      return { ok: true, status: res.status, data };
-    }
-    return {
-      ok: false,
-      status: res.status,
-      message: describeError(res.status, data && data.message),
-    };
+  switch (status) {
+    case 400:
+      return `<strong>Lỗi dữ liệu (400):</strong> Mã mời Liên Quân hoặc số lượng không hợp lệ.${detail}`;
+    case 401:
+      return `<strong>Lỗi xác thực (401):</strong> Mã DVC_API_KEY bị sai, hết hạn hoặc chưa được điền.${detail}`;
+    case 402:
+      return `<strong>Không đủ số dư (402):</strong> Tài khoản dịch vụ đã hết tiền. Vui lòng nạp thêm để tạo đơn.${detail}`;
+    case 403:
+      return `<strong>Từ chối truy cập (403):</strong> Không có quyền truy cập, hoặc bạn chưa thêm tên miền GitHub Pages vào mục "Review domains" trên CorsProxy.${detail}`;
+    case 409:
+      return `<strong>Trùng lặp đơn hàng (409):</strong> Đơn hàng với mã này đang được xử lý hoặc bị trùng Idempotency-Key.${detail}`;
+    case 429:
+      return `<strong>Quá giới hạn yêu cầu (429):</strong> Bạn thao tác quá nhanh (Rate Limit). Vui lòng đợi vài giây rồi thử lại.${detail}`;
+    case 503:
+      return `<strong>Bảo trì hệ thống (503):</strong> Máy chủ dịch vụ đang quá tải hoặc bảo trì. Vui lòng thử lại sau.${detail}`;
+    default:
+      return `<strong>Lỗi không xác định (HTTP ${status}):</strong> Không thể tạo đơn hàng lúc này.${detail}`;
   }
 }
 
-/* ---------- Luồng chính ---------- */
-async function run() {
-  el.result.className = "";
-  el.result.textContent = "";
+// ============================================================================
+// 4. SỰ KIỆN BẤM NÚT "TẠO ĐƠN NGAY"
+// ============================================================================
+submitBtn.addEventListener("click", async () => {
+  // Ẩn khung thông báo cũ
+  resultBox.className = "";
+  resultBox.style.display = "none";
 
-  const code = extractCode(el.text.value);
-  if (!code) {
-    showResult("error", "Không tìm thấy mã mời. ", "Đoạn text cần có dạng --MãMời-- (mã nằm giữa hai dấu gạch ngang).");
-    return;
-  }
+  // 1. Lọc mã Liên Quân từ textarea
+  const rawText = rawTextInput.value.trim();
+  const extractedCode = extractLienQuanCode(rawText);
 
-  const qty = parseInt(el.qty.value, 10);
-  if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) {
-    showResult("error", "Số lượng không hợp lệ. ", "Nhập số nguyên từ 1 đến " + MAX_QTY + ".");
-    return;
-  }
-
-  if (!getApiKey()) {
-    showResult("error", "Chưa có API Key. ", "Điền DVC_API_KEY trong script.js hoặc nhập vào ô API Key.");
-    return;
-  }
-  if (!DVC_API_KEY) {
-    try { localStorage.setItem("dvc_api_key", el.keyInput.value.trim()); } catch (e) { /* bỏ qua */ }
-  }
-
-  const split = el.mode.value === "split";
-  const jobs = split ? qty : 1;
-  const perOrder = split ? 1 : qty;
-  const batchId = Date.now();
-  const orderIds = [];
-
-  controller = new AbortController();
-  setBusy(true);
-  el.panel.hidden = false;
-  el.log.textContent = "";
-  setProgress(0, jobs);
-  if (!split) {
-    el.fill.classList.add("indeterminate");
-    el.counter.textContent = "1 đơn (" + qty + " lượt)";
-    el.percent.textContent = "...";
-  }
-  el.status.textContent = "Mã mời: " + code;
-
-  let failure = null;
-
-  try {
-    for (let i = 1; i <= jobs; i++) {
-      el.status.textContent = split
-        ? "Đang gửi đơn " + i + " / " + jobs + "..."
-        : "Đang gửi đơn " + qty + " lượt...";
-
-      const result = await placeOrder({
-        code,
-        quantity: perOrder,
-        idemKey: "shop-order-" + batchId + "-" + i,
-        signal: controller.signal,
-        onRetry: (n, wait, status) => {
-          const msg = "HTTP " + status + ": thử lại lần " + n + " sau " + Math.round(wait / 1000) + " giây...";
-          el.status.textContent = msg;
-          addLog(msg, "warn");
-        },
-      });
-
-      if (!result.ok) {
-        failure = result;
-        addLog("Đơn " + i + ": thất bại. " + result.message, "err");
-        break;
-      }
-
-      const order = result.data && result.data.order;
-      const id = order && order.id ? order.id : "(không có id)";
-      orderIds.push(id);
-      addLog("Đơn " + i + ": thành công, mã đơn " + id, "ok");
-      if (split) setProgress(i, jobs);
-
-      if (split && i < jobs) await sleep(DELAY_MS, controller.signal);
-    }
-  } catch (err) {
-    if (err.name === "AbortError") {
-      failure = { message: "Bạn đã dừng giữa chừng." };
-      addLog("Đã dừng theo yêu cầu.", "warn");
-    } else {
-      failure = { message: "Lỗi bất ngờ: " + err.message };
-    }
-  }
-
-  const done = orderIds.length;
-  if (!failure) {
-    setProgress(jobs, jobs, "done");
-    el.status.textContent = "Hoàn tất.";
-    showResult(
-      "success",
-      "Tạo đơn thành công! ",
-      split
-        ? "Đã tạo " + done + " đơn. Mã đơn: " + orderIds.join(", ")
-        : "Mã đơn: " + orderIds[0]
-    );
-  } else {
-    setProgress(done, jobs, "failed");
-    el.status.textContent = "Đã dừng.";
-    showResult(
+  if (!extractedCode) {
+    showNotification(
       "error",
-      "Tạo đơn thất bại. ",
-      failure.message + (split ? " (Đã tạo thành công " + done + "/" + jobs + " đơn.)" : "")
+      "<strong>Không tìm thấy mã mời!</strong> Vui lòng dán đoạn văn bản có chứa mã nằm giữa 2 dấu gạch ngang (ví dụ: <code>--zVdqY2Trt9--</code>)."
     );
+    rawTextInput.focus();
+    return;
   }
 
-  controller = null;
-  setBusy(false);
-}
+  // 2. Lấy số lượng và ép kiểu số nguyên (int)
+  const quantityValue = parseInt(quantityInput.value, 10);
+  if (isNaN(quantityValue) || quantityValue < 1) {
+    showNotification(
+      "error",
+      "<strong>Số lượng không hợp lệ!</strong> Vui lòng nhập số nguyên lớn hơn hoặc bằng 1."
+    );
+    quantityInput.focus();
+    return;
+  }
 
-/* ---------- Khởi tạo ---------- */
-el.submit.addEventListener("click", run);
-el.cancel.addEventListener("click", () => { if (controller) controller.abort(); });
+  // 3. Khóa nút bấm khi đang gọi API
+  submitBtn.disabled = true;
+  btnText.textContent = "Đang gửi yêu cầu...";
 
-if (!DVC_API_KEY) {
-  el.keyField.hidden = false;
+  // Tạo Idempotency-Key chống trùng đơn
+  const idempotencyKey = "shop-order-" + Date.now();
+
+  // Dữ liệu Body JSON (chữ Q viết hoa trong lienQuanCode)
+  const payload = {
+    serviceCode: "LIENQUAN_CHUNG_SUC",
+    quantity: quantityValue,
+    lienQuanCode: extractedCode
+  };
+
   try {
-    const saved = localStorage.getItem("dvc_api_key");
-    if (saved) el.keyInput.value = saved;
-  } catch (e) { /* bỏ qua */ }
-}
+    // 4. Gọi Fetch API thông qua CorsProxy có gắn Key
+    const response = await fetch(FINAL_API_URL, {
+      method: "POST",
+      headers: {
+        "accept": "*/*",
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + DVC_API_KEY,
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // Đọc phản hồi từ server (hỗ trợ cả trường hợp lỗi trả về dạng text thuần từ Proxy)
+    const rawResponseText = await response.text();
+    let data = {};
+    try {
+      data = rawResponseText ? JSON.parse(rawResponseText) : {};
+    } catch (e) {
+      data = { message: rawResponseText || "Không thể phân tích dữ liệu JSON từ máy chủ." };
+    }
+
+    // 5. Xử lý kết quả trả về
+    if (response.status === 200 || response.status === 201) {
+      const orderId = (data && data.order && data.order.id) ? data.order.id : "Không xác định";
+      showNotification(
+        "success",
+        `<strong>Tạo đơn thành công!</strong><br>
+         • Mã đơn hàng: <strong>${orderId}</strong><br>
+         • Mã Liên Quân: <code>${extractedCode}</code><br>
+         • Số lượng: <strong>${quantityValue}</strong>`
+      );
+    } else {
+      const serverMsg = data && data.message ? data.message : "";
+      const errorHtml = getVietnameseErrorMessage(response.status, serverMsg);
+      showNotification("error", errorHtml);
+    }
+  } catch (networkError) {
+    showNotification(
+      "error",
+      `<strong>Lỗi kết nối mạng!</strong> Không thể gọi tới CorsProxy hoặc máy chủ đích.<br>
+       <small>Chi tiết: ${networkError.message}</small>`
+    );
+  } finally {
+    // 6. Mở khóa lại nút bấm
+    submitBtn.disabled = false;
+    btnText.textContent = "Tạo Đơn Ngay";
+  }
+});
