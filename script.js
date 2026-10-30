@@ -2,13 +2,13 @@
 
 /* ================= CẤU HÌNH ================= */
 // Key của dịch vụ Chung Sức. Để trống thì trang sẽ hiện ô nhập key (lưu localStorage).
-const DVC_API_KEY = "";
+const DVC_API_KEY = "dvc_1ff8c725bca9ab562ebd6311cfeefb4a18b9ba3945d04ecfdad5f3941ed81556";
 
 // Key CorsProxy (lấy ở dashboard corsproxy.io). Để trống = dùng proxy không key.
-const CORSPROXY_KEY = "";
+const CORSPROXY_KEY = "e25a3964";
 
 const API_URL = "https://api.dichvuchungsuc.com/v1/orders";
-const PROXY_BASE = "https://corsproxy.io/";
+const PROXY_BASE = "https://corsproxy.io/?";
 const SERVICE_CODE = "LIENQUAN_CHUNG_SUC";
 
 const MAX_QTY = 100;      // giới hạn an toàn cho 1 lượt bấm
