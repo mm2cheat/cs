@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Điền API Key của dịch vụ Chung Sức vào đây (Upstream API token)
-const DVC_API_KEY = "dvc_1ff8c725bca9ab562ebd6311cfeefb4a18b9ba3945d04ecfdad5f3941ed81556";
+const DVC_API_KEY = "dvc_5f8da1a08ada16d6aa2262e6728d585cb0957fc3fc22ff1f43750f8131d61932";
 
 // Mã Key CorsProxy lấy từ tài khoản của bạn
 const CORS_PROXY_KEY = "e25a3964";
