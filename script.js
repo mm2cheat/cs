@@ -1,95 +1,175 @@
-// Thay mã API Key thật của bạn vào trong cặp ngoặc kép bên dưới
-const API_KEY = "dvc_1ff8c725bca9ab562ebd6311cfeefb4a18b9ba3945d04ecfdad5f3941ed81556";
+// ============================================================================
+// 1. CẤU HÌNH API KEY & ENDPOINT
+// ============================================================================
+const DVC_API_KEY = "dvc_1ff8c725bca9ab562ebd6311cfeefb4a18b9ba3945d04ecfdad5f3941ed81556";
 
-const API_URL = "https://corsproxy.io/?https://api.dichvuchungsuc.com/v1/orders";
+const TARGET_API_URL = "https://api.dichvuchungsuc.com/v1/orders";
 
-async function processOrder() {
-    const inviteText = document.getElementById("inviteText").value.trim();
-    const quantity = document.getElementById("quantity").value;
-    const resultBox = document.getElementById("result");
-    const submitBtn = document.getElementById("submitBtn");
+// Sử dụng CORS Proxy hỗ trợ phương thức POST và giữ nguyên Custom Headers (Authorization, Idempotency-Key)
+// Tùy chọn 1 (Khuyên dùng cho POST): https://corsproxy.io/?
+// Tùy chọn 2 (ThingProxy): https://thingproxy.freeboard.io/fetch/
+// Tùy chọn 3 (AllOrigins): https://api.allorigins.win/raw?url=
+const FINAL_API_URL = "https://corsproxy.io/?" + encodeURIComponent(TARGET_API_URL);
 
-    resultBox.style.display = "none";
-    resultBox.className = "";
-    resultBox.innerHTML = "";
+// ============================================================================
+// 2. THAM CHIẾU DOM ELEMENTS
+// ============================================================================
+const rawTextInput = document.getElementById("rawText");
+const quantityInput = document.getElementById("quantity");
+const submitBtn = document.getElementById("submitBtn");
+const btnText = document.getElementById("btnText");
+const resultBox = document.getElementById("resultBox");
 
-    if (!inviteText) {
-        showResult("Vui lòng dán đoạn text mã mời từ game!", "error");
-        return;
-    }
+// ============================================================================
+// 3. HÀM TIỆN ÍCH (HIỂN THỊ THÔNG BÁO & LỌC MÃ REGEX)
+// ============================================================================
 
-    const match = inviteText.match(/--([A-Za-z0-9]+)--/);
-    if (!match) {
-        showResult("Không tìm thấy mã hợp lệ! Hãy copy đúng đoạn chữ chia sẻ từ game.", "error");
-        return;
-    }
-    const extractedCode = match[1];
+/**
+ * Hiển thị thông báo lên giao diện
+ * @param {string} type - 'success' hoặc 'error'
+ * @param {string} htmlContent - Nội dung thông báo
+ */
+function showNotification(type, htmlContent) {
+  resultBox.className = type;
+  resultBox.innerHTML = htmlContent;
+}
 
-    const bodyData = {
-        serviceCode: "LIENQUAN_CHUNG_SUC",
-        quantity: parseInt(quantity),
-        lienQuanCode: extractedCode
-    };
+/**
+ * Dùng Regex tách chuỗi nằm giữa 2 cặp dấu gạch ngang (--mã--)
+ * @param {string} text - Đoạn văn bản gốc người dùng dán vào
+ * @returns {string|null} - Mã mời hoặc null nếu không tìm thấy
+ */
+function extractLienQuanCode(text) {
+  if (!text) return null;
+  // Quét chuỗi ký tự (không chứa khoảng trắng và dấu gạch ngang) nằm giữa -- và --
+  const regex = /--([^\s-]+)--/;
+  const match = text.match(regex);
+  return match && match[1] ? match[1].trim() : null;
+}
 
-    const idempotencyKey = "shop-order-" + Date.now();
+/**
+ * Giải mã lỗi HTTP Status sang tiếng Việt dễ hiểu
+ * @param {number} status - Mã HTTP trả về
+ * @param {string} serverMessage - Thông báo gốc từ server (data.message)
+ * @returns {string} - Thông báo tiếng Việt chi tiết
+ */
+function getVietnameseErrorMessage(status, serverMessage) {
+  const detail = serverMessage ? `<br><small>Chi tiết từ máy chủ: <em>${serverMessage}</em></small>` : "";
 
-    const headers = {
+  switch (status) {
+    case 400:
+      return `<strong>Lỗi dữ liệu (400):</strong> Mã mời Liên Quân hoặc số lượng không hợp lệ.${detail}`;
+    case 401:
+      return `<strong>Lỗi xác thực (401):</strong> API Key bị sai, hết hạn hoặc chưa được điền hợp lệ.${detail}`;
+    case 402:
+      return `<strong>Không đủ số dư (402):</strong> Tài khoản của bạn đã hết tiền. Vui lòng nạp thêm để tạo đơn.${detail}`;
+    case 403:
+      return `<strong>Từ chối truy cập (403):</strong> Tài khoản không có quyền dùng dịch vụ này hoặc bị chặn bởi tường lửa.${detail}`;
+    case 409:
+      return `<strong>Trùng lặp đơn hàng (409):</strong> Đơn hàng với mã này đang được xử lý hoặc bị trùng Idempotency-Key.${detail}`;
+    case 429:
+      return `<strong>Quá giới hạn yêu cầu (429):</strong> Bạn thao tác quá nhanh (Rate Limit). Vui lòng đợi vài giây rồi thử lại.${detail}`;
+    case 503:
+      return `<strong>Bảo trì hệ thống (503):</strong> Máy chủ dịch vụ đang quá tải hoặc bảo trì. Vui lòng thử lại sau.${detail}`;
+    default:
+      return `<strong>Lỗi không xác định (Mã HTTP ${status}):</strong> Không thể tạo đơn hàng lúc này.${detail}`;
+  }
+}
+
+// ============================================================================
+// 4. XỬ LÝ SỰ KIỆN KHI BẤM NÚT "TẠO ĐƠN NGAY"
+// ============================================================================
+submitBtn.addEventListener("click", async () => {
+  // Ẩn thông báo cũ
+  resultBox.className = "";
+  resultBox.style.display = "none";
+
+  // Bước 1: Kiểm tra và lọc mã mời bằng Regex
+  const rawText = rawTextInput.value.trim();
+  const extractedCode = extractLienQuanCode(rawText);
+
+  if (!extractedCode) {
+    showNotification(
+      "error",
+      "<strong>Không tìm thấy mã mời!</strong> Vui lòng dán đúng đoạn tin nhắn chia sẻ từ game có chứa mã nằm giữa hai dấu gạch ngang (ví dụ: <code>--zVdqY2Trt9--</code>)."
+    );
+    rawTextInput.focus();
+    return;
+  }
+
+  // Bước 2: Kiểm tra và ép kiểu số lượng sang số nguyên (Integer)
+  const quantityValue = parseInt(quantityInput.value, 10);
+  if (isNaN(quantityValue) || quantityValue < 1) {
+    showNotification(
+      "error",
+      "<strong>Số lượng không hợp lệ!</strong> Vui lòng nhập số lượng là số nguyên lớn hơn hoặc bằng 1."
+    );
+    quantityInput.focus();
+    return;
+  }
+
+  // Bước 3: Khóa nút bấm để tránh người dùng bấm liên tục
+  submitBtn.disabled = true;
+  btnText.textContent = "Đang xử lý đơn...";
+
+  // Tạo Idempotency-Key tự động chống trùng đơn
+  const idempotencyKey = "shop-order-" + Date.now();
+
+  // Đóng gói Payload theo đúng chuẩn API yêu cầu (chữ Q viết hoa trong lienQuanCode)
+  const payload = {
+    serviceCode: "LIENQUAN_CHUNG_SUC",
+    quantity: quantityValue,
+    lienQuanCode: extractedCode
+  };
+
+  try {
+    // Bước 4: Gửi Request qua Fetch API
+    const response = await fetch(FINAL_API_URL, {
+      method: "POST",
+      headers: {
         "accept": "*/*",
-        "Idempotency-Key": idempotencyKey,
-        "Authorization": `Bearer ${API_KEY}`,
-        "Content-Type": "application/json"
-    };
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + DVC_API_KEY,
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify(payload)
+    });
 
-    submitBtn.disabled = true;
-    submitBtn.innerText = "Đang xử lý...";
-
+    // Cố gắng đọc dữ liệu JSON trả về từ Server
+    let data = {};
     try {
-        const response = await fetch(API_URL, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(bodyData)
-        });
-
-        const data = await response.json();
-
-        if (response.ok || response.status === 200 || response.status === 201) {
-            const orderId = data.order ? data.order.id : "Không rõ ID";
-            showResult(`✅ <b>Tạo đơn thành công!</b><br>Mã đơn: ${orderId}<br>Mã game: <b>${extractedCode}</b><br>Số lượng: ${quantity}`, "success");
-            document.getElementById("inviteText").value = ""; 
-        } else {
-            const errorMsg = data.message || "Lỗi không xác định";
-            let userFriendlyMsg = `❌ Lỗi API: ${errorMsg}`;
-
-            if (response.status === 401 || errorMsg.includes("INVALID_API_KEY")) {
-                userFriendlyMsg = "❌ Lỗi 401: API Key sai, đã bị thu hồi hoặc tài khoản bị khóa.";
-            } else if (response.status === 402 || errorMsg.includes("INSUFFICIENT_BALANCE")) {
-                userFriendlyMsg = "❌ Lỗi 402: Ví của bạn không đủ tiền để tạo đơn.";
-            } else if (response.status === 403 || errorMsg.includes("ACCOUNT_NOT_ACTIVE")) {
-                userFriendlyMsg = "❌ Lỗi 403: Tài khoản của bạn chưa được kích hoạt.";
-            } else if (response.status === 409) {
-                userFriendlyMsg = "❌ Lỗi 409: Dịch vụ hết số lượng, trùng key hoặc ví bảo trì.";
-            } else if (response.status === 429) {
-                userFriendlyMsg = "❌ Lỗi 429: Bạn đang gửi lệnh quá nhanh. Hãy chờ một lát.";
-            } else if (response.status === 503) {
-                userFriendlyMsg = "❌ Lỗi 503: Máy chủ bận xử lý. Vui lòng bấm thử lại.";
-            } else if (response.status === 400) {
-                userFriendlyMsg = `❌ Lỗi 400 (Dữ liệu sai): ${errorMsg}`;
-            }
-
-            showResult(userFriendlyMsg, "error");
-        }
-    } catch (error) {
-        showResult(`❌ Lỗi kết nối mạng hoặc Proxy từ chối. Nếu vẫn lỗi, hãy tải lại trang.`, "error");
-        console.error("Chi tiết lỗi:", error);
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerText = "Tạo Đơn Ngay";
+      data = await response.json();
+    } catch (parseError) {
+      // Trường hợp server trả về lỗi dạng text/html thay vì JSON
+      data = { message: "Máy chủ không trả về định dạng JSON chuẩn." };
     }
-}
 
-function showResult(message, type) {
-    const resultBox = document.getElementById("result");
-    resultBox.innerHTML = message;
-    resultBox.className = type;
-    resultBox.style.display = "block";
-}
+    // Bước 5: Kiểm tra mã HTTP Status
+    if (response.status === 200 || response.status === 201) {
+      const orderId = (data && data.order && data.order.id) ? data.order.id : "Không xác định";
+      showNotification(
+        "success",
+        `<strong>Tạo đơn thành công!</strong><br>
+         • Mã đơn hàng: <strong>${orderId}</strong><br>
+         • Mã Liên Quân: <code>${extractedCode}</code><br>
+         • Số lượng: <strong>${quantityValue}</strong>`
+      );
+    } else {
+      // Xử lý các mã lỗi 400, 401, 402, 403, 409, 429, 503...
+      const serverMsg = data && data.message ? data.message : "";
+      const errorHtml = getVietnameseErrorMessage(response.status, serverMsg);
+      showNotification("error", errorHtml);
+    }
+  } catch (networkError) {
+    // Lỗi rớt mạng hoặc CORS Proxy bị sập
+    showNotification(
+      "error",
+      `<strong>Lỗi kết nối mạng hoặc CORS Proxy!</strong> Không thể kết nối tới máy chủ API.<br>
+       <small>Chi tiết kỹ thuật: ${networkError.message}</small>`
+    );
+  } finally {
+    // Bước 6: Mở khóa lại nút bấm sau khi hoàn tất
+    submitBtn.disabled = false;
+    btnText.textContent = "Tạo Đơn Ngay";
+  }
+});
