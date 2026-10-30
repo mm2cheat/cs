@@ -1,231 +1,395 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Công Cụ Tạo Đơn Chung Sức Liên Quân</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chung Sức Liên Quân · Tạo Đơn Tự Động</title>
   <style>
     :root {
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --bg-color: #f8fafc;
-      --card-bg: #ffffff;
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-      --border-color: #e2e8f0;
-      --success-bg: #ecfdf5;
-      --success-border: #10b981;
-      --success-text: #065f46;
-      --error-bg: #fef2f2;
-      --error-border: #ef4444;
-      --error-text: #991b1b;
+      --bg:        #0d0d1a;
+      --surface:   #141428;
+      --surface-2: #1a1a35;
+      --accent:    #7c3aed;
+      --accent-2:  #06b6d4;
+      --success:   #10b981;
+      --error:     #ef4444;
+      --text:      #e2e8f0;
+      --text-dim:  #64748b;
+      --border:    rgba(124, 58, 237, 0.25);
+      --glow:      rgba(124, 58, 237, 0.15);
+      --radius:    12px;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,58,237,0.12) 0%, transparent 60%);
     }
 
-    .container {
-      background-color: var(--card-bg);
-      width: 100%;
-      max-width: 500px;
-      padding: 28px;
-      border-radius: 16px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
-      border: 1px solid var(--border-color);
-    }
+    .container { width: 100%; max-width: 540px; }
 
-    .header {
-      text-align: center;
-      margin-bottom: 24px;
-    }
-
-    .header h1 {
-      font-size: 1.4rem;
+    /* ── Header ── */
+    .header { text-align: center; margin-bottom: 28px; }
+    .header .badge {
+      display: inline-block;
+      font-size: 0.7rem;
       font-weight: 700;
-      color: var(--text-main);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+      background: rgba(6,182,212,0.1);
+      border: 1px solid rgba(6,182,212,0.25);
+      border-radius: 99px;
+      padding: 3px 10px;
+      margin-bottom: 12px;
+    }
+    .header h1 {
+      font-size: clamp(1.5rem, 5vw, 2rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #a78bfa 0%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
       margin-bottom: 6px;
     }
+    .header p { color: var(--text-dim); font-size: 0.85rem; }
 
-    .header p {
-      font-size: 0.9rem;
-      color: var(--text-muted);
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 0 40px var(--glow), 0 8px 32px rgba(0,0,0,0.4);
     }
 
-    .form-group {
-      margin-bottom: 18px;
-    }
+    /* ── Fields ── */
+    .field { margin-bottom: 18px; }
+    .field:last-child { margin-bottom: 0; }
 
     label {
-      display: block;
-      font-size: 0.9rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--text-main);
-    }
-
-    textarea,
-    input[type="number"] {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      font-size: 0.95rem;
-      color: var(--text-main);
-      background-color: #fcfcfd;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 110px;
-      line-height: 1.5;
-    }
-
-    textarea:focus,
-    input[type="number"]:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-      background-color: #ffffff;
-    }
-
-    .hint {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      background-color: var(--primary);
-      color: #ffffff;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s, transform 0.1s;
       display: flex;
-      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    label .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    textarea, input[type="number"] {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 12px 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      appearance: none;
+    }
+    textarea {
+      font-family: 'Consolas', 'Courier New', monospace;
+      resize: vertical;
+      min-height: 88px;
+      line-height: 1.6;
+    }
+    textarea:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,58,237,0.15);
+    }
+
+    /* ── Parsed preview ── */
+    .parsed-pill {
+      display: none;
+      margin-top: 8px;
+      padding: 7px 12px;
+      background: rgba(6,182,212,0.07);
+      border: 1px solid rgba(6,182,212,0.2);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--accent-2);
+      font-family: 'Consolas', monospace;
+      align-items: center;
+      gap: 6px;
+    }
+    .parsed-pill.show { display: flex; }
+    .parsed-pill strong { color: #fff; }
+
+    /* ── Row ── */
+    .row {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 12px;
+      align-items: end;
+    }
+    @media (max-width: 380px) {
+      .row { grid-template-columns: 1fr; }
+    }
+
+    /* ── Button ── */
+    .btn {
+      padding: 13px 20px;
+      background: linear-gradient(135deg, var(--accent) 0%, #5b21b6 100%);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(124,58,237,0.35);
+    }
+    .btn:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(124,58,237,0.5);
+    }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ── Progress ── */
+    .progress-wrap {
+      margin-top: 20px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .progress-wrap.show { display: flex; }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .progress-label {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      transition: color 0.3s;
+    }
+    .progress-pct {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent-2);
+      font-variant-numeric: tabular-nums;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .track {
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 10px var(--accent);
+      transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ── Result ── */
+    .result {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      line-height: 1.65;
+      display: none;
+    }
+    .result.show { display: block; }
+    .result.success {
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.28);
+      color: #6ee7b7;
+    }
+    .result.error {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.28);
+      color: #fca5a5;
+    }
+    .result .order-id {
+      font-family: 'Consolas', monospace;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--success);
+      cursor: pointer;
+      border-bottom: 1px dashed currentColor;
+    }
+    .result .copy-hint { font-size: 0.72rem; opacity: 0.6; margin-left: 4px; }
+    .result .retry-btn {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 5px 12px;
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 6px;
+      color: #fca5a5;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .result .retry-btn:hover { background: rgba(239,68,68,0.25); }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.05);
+      margin: 22px 0;
+    }
+
+    /* ── History ── */
+    .history { display: none; }
+    .history.show { display: block; }
+    .history-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .history-head span {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .clear-btn {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .clear-btn:hover { color: var(--error); background: rgba(239,68,68,0.08); }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-track { background: transparent; }
+    .history-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+
+    .hi {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
       gap: 8px;
+      padding: 7px 11px;
+      background: var(--surface-2);
+      border-radius: 8px;
+      font-size: 0.78rem;
     }
-
-    button:hover:not(:disabled) {
-      background-color: var(--primary-hover);
+    .hi-code { font-family: 'Consolas', monospace; color: var(--accent-2); }
+    .hi-right { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
+    .hi-badge {
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
     }
+    .hi-badge.ok  { background: rgba(16,185,129,0.12); color: #6ee7b7; }
+    .hi-badge.fail { background: rgba(239,68,68,0.12); color: #fca5a5; }
 
-    button:active:not(:disabled) {
-      transform: scale(0.99);
-    }
-
-    button:disabled {
-      background-color: #94a3b8;
-      cursor: not-allowed;
-      opacity: 0.8;
-    }
-
-    #resultBox {
-      margin-top: 20px;
-      padding: 14px 16px;
-      border-radius: 10px;
-      font-size: 0.92rem;
-      line-height: 1.5;
-      display: none;
-      word-break: break-word;
-    }
-
-    #resultBox.success {
-      display: block;
-      background-color: var(--success-bg);
-      border: 1px solid var(--success-border);
-      color: var(--success-text);
-    }
-
-    #resultBox.error {
-      display: block;
-      background-color: var(--error-bg);
-      border: 1px solid var(--error-border);
-      color: var(--error-text);
-    }
-
-    .spinner {
-      width: 18px;
-      height: 18px;
-      border: 2.5px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #ffffff;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      display: none;
-    }
-
-    button:disabled .spinner {
-      display: inline-block;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    @media (max-width: 480px) {
-      .container {
-        padding: 20px;
-      }
-      .header h1 {
-        font-size: 1.25rem;
-      }
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 0.72rem;
+      color: #2d2d4e;
     }
   </style>
 </head>
 <body>
-
   <div class="container">
+
     <div class="header">
-      <h1>Tạo Đơn Chung Sức Liên Quân</h1>
-      <p>Hệ thống tự động lọc mã mời và lên đơn qua API</p>
+      <div class="badge">⚡ Auto Order</div>
+      <h1>⚔️ Chung Sức Liên Quân</h1>
+      <p>Tạo đơn tự động · dichvuchungsuc.com</p>
     </div>
 
-    <div class="form-group">
-      <label for="rawText">Đoạn văn bản copy từ trong game:</label>
-      <textarea 
-        id="rawText" 
-        placeholder="Ví dụ: Chia sẻ mã mời --zVdqY2Trt9--, [[llxHQdf...]]"
-      ></textarea>
-      <div class="hint">Hệ thống sẽ tự động lấy mã nằm giữa cặp dấu <strong>--</strong></div>
+    <div class="card">
+
+      <div class="field">
+        <label><span class="dot"></span>Đoạn text từ game</label>
+        <textarea id="gameText"
+          placeholder='Dán text copy từ game vào đây&#10;Ví dụ: "Chia sẻ mã mời --zVdqY2Trt9--, [[llxHQdf...]]"'
+        ></textarea>
+        <div class="parsed-pill" id="parsedPill">
+          ✓ Đọc được mã: <strong id="parsedCode"></strong>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="margin-bottom:0">
+          <label><span class="dot"></span>Số lượng</label>
+          <input type="number" id="quantity" value="1" min="1" max="99" />
+        </div>
+        <button class="btn" id="submitBtn" onclick="createOrder()">
+          Tạo Đơn Ngay
+        </button>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-meta">
+          <span class="progress-label" id="progressLabel">Đang khởi tạo...</span>
+          <span class="progress-pct" id="progressPct">0%</span>
+        </div>
+        <div class="track">
+          <div class="bar" id="progressBar"></div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="result" id="result"></div>
+
+      <!-- History -->
+      <div class="divider" id="divider" style="display:none"></div>
+      <div class="history" id="historyWrap">
+        <div class="history-head">
+          <span>Lịch sử phiên này</span>
+          <button class="clear-btn" onclick="clearHistory()">Xoá</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+
     </div>
 
-    <div class="form-group">
-      <label for="quantity">Số lượng cần tăng:</label>
-      <input 
-        type="number" 
-        id="quantity" 
-        value="1" 
-        min="1" 
-        step="1"
-      >
-    </div>
-
-    <button id="submitBtn" type="button">
-      <span class="spinner"></span>
-      <span id="btnText">Tạo Đơn Ngay</span>
-    </button>
-
-    <div id="resultBox"></div>
+    <div class="footer">Static tool · GitHub Pages · Không lưu dữ liệu phía server</div>
   </div>
 
   <script src="script.js"></script>
