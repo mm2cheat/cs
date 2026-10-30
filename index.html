@@ -1,213 +1,233 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tạo đơn Chung Sức Liên Quân</title>
-<style>
-  :root {
-    --bg: #eaf0f8;
-    --card: #ffffff;
-    --ink: #14213d;
-    --muted: #5b6b86;
-    --line: #d5dfee;
-    --accent: #1f5eff;
-    --accent-dark: #1648c9;
-    --ok: #12804a;
-    --ok-bg: #e6f6ee;
-    --err: #b42333;
-    --err-bg: #fdecee;
-    --warn: #8a5a00;
-    --warn-bg: #fff4dc;
-    --radius: 14px;
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body {
-    margin: 0;
-    min-height: 100vh;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    line-height: 1.5;
-    display: flex;
-    justify-content: center;
-    padding: 24px 16px 48px;
-  }
-  main { width: 100%; max-width: 580px; }
-  h1 { font-size: 1.5rem; margin: 8px 0 4px; letter-spacing: -0.01em; }
-  .sub { margin: 0 0 20px; color: var(--muted); font-size: 0.95rem; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Công Cụ Tạo Đơn Chung Sức Liên Quân</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --success-bg: #ecfdf5;
+      --success-border: #10b981;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-border: #ef4444;
+      --error-text: #991b1b;
+    }
 
-  .card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 20px;
-    box-shadow: 0 8px 28px rgba(20, 33, 61, 0.07);
-  }
-  label { display: block; font-weight: 600; font-size: 0.92rem; margin: 0 0 6px; }
-  .field { margin-bottom: 16px; }
-  .hint { color: var(--muted); font-size: 0.82rem; margin: 6px 0 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-  textarea, input[type="number"], input[type="password"], select {
-    width: 100%;
-    font: inherit;
-    color: var(--ink);
-    background: #f8fafd;
-    border: 1.5px solid var(--line);
-    border-radius: 10px;
-    padding: 11px 12px;
-    transition: border-color .15s, box-shadow .15s;
-  }
-  textarea { min-height: 112px; resize: vertical; }
-  textarea:focus, input:focus, select:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(31, 94, 255, 0.18);
-    background: #fff;
-  }
-  .row { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
-  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
 
-  .actions { display: flex; gap: 10px; margin-top: 4px; }
-  button {
-    font: inherit;
-    font-weight: 700;
-    border: 0;
-    border-radius: 10px;
-    padding: 13px 18px;
-    cursor: pointer;
-    transition: background .15s, transform .05s, opacity .15s;
-  }
-  button:active:not(:disabled) { transform: translateY(1px); }
-  button:focus-visible { outline: 3px solid rgba(31, 94, 255, 0.4); outline-offset: 2px; }
-  #submitBtn { flex: 1; background: var(--accent); color: #fff; }
-  #submitBtn:hover:not(:disabled) { background: var(--accent-dark); }
-  #cancelBtn { background: #e8edf6; color: var(--ink); }
-  #cancelBtn:hover:not(:disabled) { background: #d9e1ef; }
-  button:disabled { opacity: 0.55; cursor: not-allowed; }
-  #cancelBtn[hidden] { display: none; }
+    .container {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 500px;
+      padding: 28px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+      border: 1px solid var(--border-color);
+    }
 
-  /* Tiến độ */
-  #progressPanel { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
-  #progressPanel[hidden] { display: none; }
-  .progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-  #percent { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-  #counter { color: var(--muted); font-size: 0.92rem; font-variant-numeric: tabular-nums; text-align: right; }
-  .track {
-    height: 14px;
-    border-radius: 999px;
-    background: #e3eaf6;
-    overflow: hidden;
-    margin: 8px 0 6px;
-  }
-  .fill {
-    height: 100%;
-    width: 0;
-    border-radius: 999px;
-    background: var(--accent);
-    transition: width .35s ease, background .2s;
-  }
-  .fill.done { background: var(--ok); }
-  .fill.failed { background: var(--err); }
-  .fill.indeterminate {
-    width: 40% !important;
-    animation: slide 1.1s ease-in-out infinite alternate;
-  }
-  @keyframes slide { from { margin-left: 0; } to { margin-left: 60%; } }
-  #status { color: var(--muted); font-size: 0.88rem; min-height: 1.3em; }
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
 
-  #log {
-    list-style: none;
-    margin: 12px 0 0;
-    padding: 0;
-    max-height: 190px;
-    overflow-y: auto;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    font-size: 0.85rem;
-    background: #f8fafd;
-  }
-  #log:empty { display: none; }
-  #log li { padding: 7px 12px; border-bottom: 1px solid var(--line); word-break: break-all; }
-  #log li:last-child { border-bottom: 0; }
-  #log li.ok { color: var(--ok); }
-  #log li.err { color: var(--err); }
-  #log li.warn { color: var(--warn); }
+    .header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
 
-  /* Thông báo kết quả */
-  #result {
-    display: none;
-    margin-top: 16px;
-    padding: 13px 14px;
-    border-radius: 10px;
-    font-size: 0.95rem;
-    border: 1px solid transparent;
-    word-break: break-word;
-  }
-  #result.show { display: block; }
-  #result.success { background: var(--ok-bg); color: var(--ok); border-color: #b9e4cf; }
-  #result.error { background: var(--err-bg); color: var(--err); border-color: #f4c3c9; }
-  #result strong { display: block; margin-bottom: 2px; }
+    .header p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
 
-  @media (prefers-reduced-motion: reduce) {
-    .fill { transition: none; }
-    .fill.indeterminate { animation: none; width: 100% !important; opacity: .6; }
-  }
-</style>
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    textarea,
+    input[type="number"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      background-color: #fcfcfd;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 110px;
+      line-height: 1.5;
+    }
+
+    textarea:focus,
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+      background-color: #ffffff;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background-color: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    button:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+
+    button:disabled {
+      background-color: #94a3b8;
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
+
+    #resultBox {
+      margin-top: 20px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      display: none;
+      word-break: break-word;
+    }
+
+    #resultBox.success {
+      display: block;
+      background-color: var(--success-bg);
+      border: 1px solid var(--success-border);
+      color: var(--success-text);
+    }
+
+    #resultBox.error {
+      display: block;
+      background-color: var(--error-bg);
+      border: 1px solid var(--error-border);
+      color: var(--error-text);
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    button:disabled .spinner {
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        padding: 20px;
+      }
+      .header h1 {
+        font-size: 1.25rem;
+      }
+    }
+  </style>
 </head>
 <body>
-<main>
-  <h1>Tạo đơn Chung Sức Liên Quân</h1>
-  <p class="sub">Dán đoạn chia sẻ từ game, chọn số lượng rồi bấm tạo đơn.</p>
 
-  <section class="card">
-    <div class="field">
-      <label for="shareText">Đoạn text copy từ game</label>
-      <textarea id="shareText" placeholder="Chia sẻ mã mời --zVdqY2Trt9--, [[llxHQdf...]]"></textarea>
-      <p class="hint">Công cụ tự lấy mã nằm giữa hai dấu gạch ngang.</p>
+  <div class="container">
+    <div class="header">
+      <h1>Tạo Đơn Chung Sức Liên Quân</h1>
+      <p>Hệ thống tự động lọc mã mời và lên đơn qua API</p>
     </div>
 
-    <div class="row">
-      <div class="field">
-        <label for="quantity">Số lượng</label>
-        <input type="number" id="quantity" value="1" min="1" max="100" step="1" inputmode="numeric">
-      </div>
-      <div class="field">
-        <label for="mode">Cách gửi đơn</label>
-        <select id="mode">
-          <option value="split">Tách từng đơn (thanh tiến độ thật)</option>
-          <option value="single">Gộp thành 1 đơn</option>
-        </select>
-      </div>
+    <div class="form-group">
+      <label for="rawText">Đoạn văn bản copy từ trong game:</label>
+      <textarea 
+        id="rawText" 
+        placeholder="Ví dụ: Chia sẻ mã mời --zVdqY2Trt9--, [[llxHQdf...]]"
+      ></textarea>
+      <div class="hint">Hệ thống sẽ tự động lấy mã nằm giữa cặp dấu <strong>--</strong></div>
     </div>
 
-    <div class="field" id="keyField" hidden>
-      <label for="apiKeyInput">API Key dịch vụ</label>
-      <input type="password" id="apiKeyInput" placeholder="Dán API Key (lưu trong trình duyệt này)" autocomplete="off">
-      <p class="hint">Chỉ hiện khi DVC_API_KEY trong script.js đang để trống.</p>
+    <div class="form-group">
+      <label for="quantity">Số lượng cần tăng:</label>
+      <input 
+        type="number" 
+        id="quantity" 
+        value="1" 
+        min="1" 
+        step="1"
+      >
     </div>
 
-    <div class="actions">
-      <button type="button" id="submitBtn">Tạo Đơn Ngay</button>
-      <button type="button" id="cancelBtn" hidden>Dừng</button>
-    </div>
+    <button id="submitBtn" type="button">
+      <span class="spinner"></span>
+      <span id="btnText">Tạo Đơn Ngay</span>
+    </button>
 
-    <div id="progressPanel" hidden>
-      <div class="progress-head">
-        <span id="percent">0%</span>
-        <span id="counter">0 / 0 đơn</span>
-      </div>
-      <div class="track" role="progressbar" aria-label="Tiến độ tạo đơn" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <div class="fill" id="fill"></div>
-      </div>
-      <div id="status" aria-live="polite"></div>
-      <ul id="log"></ul>
-    </div>
+    <div id="resultBox"></div>
+  </div>
 
-    <div id="result" role="status" aria-live="polite"></div>
-  </section>
-</main>
-<script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
